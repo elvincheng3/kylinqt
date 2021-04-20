@@ -235,10 +235,11 @@ def runGateway():
                 "channel_id": "Enter Channel ID with Log Alerts",
                 "webhook": "Enter Webhook Here"
             }, c)
-        with open("skus.txt" 'w') as s:
+        with open("skus.txt", 'w') as s:
             s.write("Delete this line and add one SKU per line")
         logging.info("Closing, Please Reopen after Setup")
         time.sleep(2)
+        return
 
     while True:
         try:
