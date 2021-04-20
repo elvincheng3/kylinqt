@@ -23,56 +23,27 @@ class SKUMonitor:
 
     # Check all timestamps and stop tasks if needed
     def checkTimestamps(self):
+        def check(site):
+            if self.sites[site] != 0 and int(time.time() * 1000) - self.sites[site] > 360000:
+                logging.info("Stopping tasks with SKU {} on {}".format(self.sku, site))
+                # TODO: Error handling for qt
+                self.webhook.send_qt_stop_embed(site=site, sku=self.sku)
+                self.sites[site] = 0
+                successfully_stopped = False
+                while not successfully_stopped:
+                    successfully_stopped = self.driver.delete_all_tasks()
+                stopped = True
+
         stopped = False
-        if self.sites["footlocker"] != 0 and int(time.time() * 1000) - self.sites["footlocker"] > 360000:
-            logging.info("Stopping tasks with SKU {} on {}".format(self.sku, "footlocker"))
-            # TODO: Error handling for qt
-            self.webhook.send_qt_stop_embed(site="footlocker", sku=self.sku)
-            self.sites["footlocker"] = 0
-            successfully_stopped = False
-            while not successfully_stopped:
-                successfully_stopped = self.driver.delete_all_tasks()
-            stopped = True
-        if self.sites["champssports"] != 0 and int(time.time() * 1000) - self.sites["champssports"] > 360000:
-            logging.info("Stopping tasks with SKU {} on {}".format(self.sku, "champssports"))
-            # TODO: Error handling for qt
-            self.webhook.send_qt_stop_embed(site="champssports", sku=self.sku)
-            self.sites["champssports"] = 0
-            successfully_stopped = False
-            while not successfully_stopped:
-                successfully_stopped = self.driver.delete_all_tasks()
-            stopped = True
-        if self.sites["footaction"] != 0 and int(time.time() * 1000) - self.sites["footaction"] > 360000:
-            logging.info("Stopping tasks with SKU {} on {}".format(self.sku, "footaction"))
-            # TODO: Error handling for qt
-            self.webhook.send_qt_stop_embed(site="footaction", sku=self.sku)
-            self.sites["footaction"] = 0
-            successfully_stopped = False
-            while not successfully_stopped:
-                successfully_stopped = self.driver.delete_all_tasks()
-            stopped = True
-        if self.sites["eastbay"] != 0 and int(time.time() * 1000) - self.sites["eastbay"] > 360000:
-            logging.info("Stopping tasks with SKU {} on {}".format(self.sku, "eastbay"))
-            # TODO: Error handling for qt
-            self.webhook.send_qt_stop_embed(site="eastbay", sku=self.sku)
-            self.sites["eastbay"] = 0
-            successfully_stopped = False
-            while not successfully_stopped:
-                successfully_stopped = self.driver.delete_all_tasks()
-            stopped = True
-        if self.sites["kidsfootlocker"] != 0 and int(time.time() * 1000) - self.sites["kidsfootlocker"] > 360000:
-            logging.info("Stopping tasks with SKU {} on {}".format(self.sku, "kidsfootlocker"))
-            # TODO: Error handling for qt
-            self.webhook.send_qt_stop_embed(site="kidsfootlocker", sku=self.sku)
-            self.sites["kidsfootlocker"] = 0
-            successfully_stopped = False
-            while not successfully_stopped:
-                successfully_stopped = self.driver.delete_all_tasks()
-            stopped = True
+        check("footlocker")
+        check("champssports")
+        check("footaction")
+        check("eastbay")
+        check("kidsfootlocker")
         return stopped
     
     def restartIfStopped(self):
-        if self.status == False:
+        if not self.status:
             if self.sites["footlocker"] != 0 and int(time.time() * 1000) - self.sites["footlocker"] < 360000:
                 logging.info("SKU {} was Stopped by Other SKU, Resuming Tasks on {}".format(self.sku, "footlocker"))
                 self.status = True

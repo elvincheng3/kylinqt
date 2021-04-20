@@ -38,9 +38,8 @@ class DashboardDriver:
         logging.info("Driver connection was refused, restarting driver")
         try:
             self.driver.close()
-        except:
+        except Exception as e:
             logging.info("While trying to close old driver, error was raised")
-            pass
         self.driver = webdriver.Chrome(options=self.opts)
         self.driver.set_window_size(1920, 1080)
         self.wait = WebDriverWait(self.driver, 10)
@@ -96,9 +95,8 @@ class DashboardDriver:
             if self.navigate(path=login_url):
                 logging.info("Already Logged In")
                 return True
-            else:
-                logging.info("Error Navigating to Dashboard")
-                return False
+            logging.info("Error Navigating to Dashboard")
+            return False
         else:
             login_success = False
             attempt_counter = 0
@@ -108,11 +106,11 @@ class DashboardDriver:
                     self.navigate(path=login_url)
                     logging.info("Navigated to dashboard, Signing In")
                     self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/button') # login to discord
-                    
-                    if not self.find('//*[@id="app-mount"]'):
-                        self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[1]/div/div[2]/input', text=user) # username
-                        self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[2]/div/input', text=pw) # password
-                        self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/button[2]') # login button
+                    # TODO Need to change xpath to more specific for other login scenario
+                    # if not self.find('//*[@id="app-mount"]'):
+                    self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[1]/div/div[2]/input', text=user) # username
+                    self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[2]/div/input', text=pw) # password
+                    self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/button[2]') # login button
                     self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/div[2]/button[2]') # accept button
                     login_success = True
                 except Exception as e:
@@ -122,34 +120,24 @@ class DashboardDriver:
                     time.sleep(2)
             if not login_success:
                 return False
-            else:
-                with open('login.json', 'w') as outfile:
-                    json.dump({"logged_in":True}, outfile)
-                return True
+            with open('login.json', 'w') as outfile:
+                json.dump({"logged_in":True}, outfile)
+            return True
 
     # Stop all QT
     def stop_all_tasks(self, sku, site):
         stop_url = "https://dashboard.kylinbot.io/quick-task/kylin-bot/stop"
         logging.info("Stopping tasks with SKU {} on {}".format(sku, site))
-        if self.navigate(path=stop_url):
-            return True
-        else:
-            return False
+        return self.navigate(path=stop_url)
 
     # Delete all QT
     def delete_all_tasks(self):
         delete_url = "https://dashboard.kylinbot.io/quick-task/kylin-bot/delete"
         logging.info("Deleting All Tasks")
-        if self.navigate(path=delete_url):
-            return True
-        else:
-            return False
+        return self.navigate(path=delete_url)
 
     # Create QT
     def create_task(self, sku, site):
         query = "https://dashboard.kylinbot.io/quick-task/kylin-bot/create?input=https://www." + str(site) + ".com/product/~/" + str(sku) + ".html&sku=" + str(sku)
         logging.info("SKU {} Found on {}, Starting Tasks".format(sku, site))
-        if self.navigate(path=query):
-            return True
-        else:
-            return False
+        return self.navigate(path=query)
