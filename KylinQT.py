@@ -14,8 +14,8 @@ from Session import Session
 from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 
-format = "%(asctime)s: %(message)s"
-logging.basicConfig(format=format, level=logging.INFO, handlers=[
+logging_format = "%(asctime)s: %(message)s"
+logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
     logging.FileHandler("task.log"),
     logging.StreamHandler()
 ])
@@ -60,18 +60,16 @@ def runGateway():
 
         # consider implenting signals to propagate a stop webhook to all async subfunctions
 
-        global _gateway
         listen = True
         try:
             while listen:
                 try:
                     i = await ainput()
                     if i == "q":
-                        _gateway = False
+                        gateway.status = False
                         listen = False
                 except asyncio.TimeoutError:
                     logging.info("Timeout Expired")
-                    pass
         except asyncio.exceptions.CancelledError:
             logging.info("Keylog was Cancelled")
         logging.info("Closed Keylog")
@@ -80,13 +78,11 @@ def runGateway():
 
         async def watchGateway(websocket):
             while not websocket.closed:
-                if not _gateway:
+                if not gateway.status:
                     logging.info("Closing Websocket")
                     await websocket.close()
                     break
                 await asyncio.sleep(2)
-
-        global _gateway
 
         logging.info("Preparing Monitors")
         sku_monitors = []
@@ -105,7 +101,7 @@ def runGateway():
         key = asyncio.create_task(key_capture())
 
         # connect to socket
-        while _gateway:
+        while gateway.status:
             try:
                 logging.info("Connecting to Gateway")
                 async with websockets.connect("wss://gateway.discord.gg/?v=8&encoding=json") as websocket:
@@ -138,7 +134,6 @@ def runGateway():
                                 }))
                         elif data["op"] == 11: # heartbeat ack
                             logging.info("Received Heartbeat ACK")
-                            pass
 
                         # include case when no heartbeat ack is returned, which is zombied or failed connections, to terminate connection
 
@@ -280,6 +275,9 @@ def runGateway():
         except ConnectionRefusedError:
             logging.info("ConnectionRefusedError, Restarting")
 
-_gateway = True
-runGateway()
+class Gateway:
+    def __init__(self):
+        self.status = True
 
+gateway = Gateway()
+runGateway()
