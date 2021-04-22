@@ -4,18 +4,25 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from pydispatch import dispatcher
 from datetime import datetime
 import selenium
 import logging
 import time
 import json
+import asyncio
+
+SIGNAL_RESUME = 'RESUME'
+SIGNAL_LOGIN = 'LOGIN'
 
 class DashboardDriver:
 
     # Initialize the Selenium WebDriver
-    def __init__(self):
+    def __init__(self, queue):
         logging.info("Initializing Driver")
+        self.queue = queue
         self.proper_initialize = False
+        self.logged_in = False
         self.opts = Options()
         self.opts.add_argument(
             "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"
@@ -97,7 +104,7 @@ class DashboardDriver:
                 return True
             logging.info("Error Navigating to Dashboard")
             return False
-            
+
         login_success = False
         attempt_counter = 0
         while not login_success and attempt_counter < 3:
@@ -122,6 +129,7 @@ class DashboardDriver:
             return False
         with open('login.json', 'w') as outfile:
             json.dump({"logged_in":True}, outfile)
+        self.logged_in = True
         return True
 
     # Stop all QT
@@ -141,3 +149,42 @@ class DashboardDriver:
         query = "https://dashboard.kylinbot.io/quick-task/kylin-bot/create?input=https://www." + str(site) + ".com/product/~/" + str(sku) + ".html&sku=" + str(sku)
         logging.info("SKU {} Found on {}, Starting Tasks".format(sku, site))
         return self.navigate(path=query)
+
+    # Driver queue manager
+    async def driverManager(self):
+        try:
+            while True:
+                driver_task = await self.queue.get()
+                logging.info(self.queue.qsize)
+                if driver_task["type"] == "LOGIN":
+                    if not self.logged_in:
+                        with open('login.json') as login:
+                            login = json.load(login)
+                        login_success = False
+                        login_counter = 0
+                        while not login_success and login_counter < 3:
+                            if self.login(login_state=login["logged_in"], user=driver_task["data"]["user"], pw=driver_task["data"]["pass"]):
+                                logging.info("Successfully logged in")
+                                login_success = True
+                            else:
+                                logging.info("Failed to login, retrying")
+                                login_counter += 1
+                        if login_counter > 2:
+                            logging.info("Unable to login, Closing")
+                            dispatcher.send(signal=SIGNAL_LOGIN, successful=False)
+                        else:
+                            self.logged_in = True
+                            dispatcher.send(signal=SIGNAL_LOGIN, successful=True)
+                elif driver_task["type"] == "CREATE":
+                    logging.info("Received CREATE task from Queue")
+                    # TODO: add error handling
+                    if self.logged_in:
+                        driver.create_task(driver_task["data"]["sku"], driver_task["data"]["site"])
+                elif driver_task["type"] == "DELETE":
+                    logging.info("Received DELETE task from Queue")
+                    if self.logged_in:
+                        driver.delete_all_tasks()
+        except asyncio.exceptions.CancelledError:
+            logging.info("Driver Manager was Cancelled")
+        finally:
+            logging.info("Driver Manager was Closed")

@@ -12,6 +12,7 @@ websockets = "*"
 asyncio = "*"
 aioconsole = "*"
 requests = "*"
+pydispatcher = "*"
 
 [requires]
 python_version = "3.9"

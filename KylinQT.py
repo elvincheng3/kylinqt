@@ -8,11 +8,17 @@ import websockets
 import asyncio
 from os import path
 from aioconsole import ainput
+from pydispatch import dispatcher
 
 from DashboardDriver import DashboardDriver
+from DriverExceptions import LoginError, DriverFailedInitializeError
+from GatewayExceptions import HeartFailedError
 from Session import Session
 from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
+from QueueData import QueueData
+
+version = "1.0.0"
 
 logging_format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
@@ -20,19 +26,22 @@ logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
     logging.StreamHandler()
 ])
 
-def runGateway():
+SIGNAL_RESUME = 'RESUME'
+SIGNAL_LOGIN = 'LOGIN'
 
-    async def heartbeat(ws, interval):
+def runGateway():
+    async def heartbeat(ws, interval, session):
         """Send every interval ms the heatbeat message."""
         try:
-            logging.info("Starting Heart")
-            while not ws.closed:
-                await asyncio.sleep(interval / 1000)  # seconds
+            while True:
                 logging.info("Sending heartbeat with d <{}>".format(session.getS()))
                 await ws.send(json.dumps({
                     "op": 1,  # Heartbeat
                     "d": session.getS()
                 }))
+                await asyncio.sleep(interval / 1000)  # seconds
+                if ws.closed:
+                    break
         except websockets.exceptions.ConnectionClosedError:
             logging.info("Websocket ConnectionClosedError, Retrying Heartbeat")
         except websockets.exceptions.ConnectionClosedOK:
@@ -42,39 +51,33 @@ def runGateway():
         finally:
             logging.info("Closed Heartbeat")
 
-    async def checkTasks(ws, monitors):
+    async def checkTasks(ws, monitors, queue):
         logging.info("Starting SKU Status Checker")
         try:
             while not ws.closed:
                 await asyncio.sleep(10)
                 logging.info("Checking Monitor Statuses")
                 for monitor in monitors:
-                    monitor.checkTimestamps()
-                # logging.info("Task Checker is Still Running")
+                    await monitor.checkTimestamps(queue)
         except asyncio.exceptions.CancelledError:
             logging.info("Task Checker was Cancelled")
         finally:
             logging.info("Closed Task Checker")
 
     async def key_capture():
-
-        # consider implenting signals to propagate a stop webhook to all async subfunctions
-
-        listen = True
         try:
-            while listen:
+            while gateway.status:
                 try:
                     i = await ainput()
                     if i == "q":
                         gateway.status = False
-                        listen = False
                 except asyncio.TimeoutError:
                     logging.info("Timeout Expired")
         except asyncio.exceptions.CancelledError:
             logging.info("Keylog was Cancelled")
         logging.info("Closed Keylog")
 
-    async def monitor_gateway(url, webhook, channel_id, driver):
+    async def monitor_gateway(url, channel_id):
 
         async def watchGateway(websocket):
             while not websocket.closed:
@@ -84,6 +87,24 @@ def runGateway():
                     break
                 await asyncio.sleep(2)
 
+        async def startReceiver(sku_monitor):
+            dispatcher.connect(sku_monitor.restartIfStopped, signal=SIGNAL_RESUME, sender=dispatcher.Any)
+
+        driver_queue = asyncio.Queue()
+        driver = DashboardDriver(driver_queue)
+        asyncio.create_task(driver.driverManager())
+        logging.info("Started Driver Manager")
+
+        if not driver.proper_initialize:
+            raise DriverFailedInitializeError
+
+        dispatcher.connect(login_check, signal=SIGNAL_LOGIN, sender=dispatcher.Any)
+        await driver_queue.put(QueueData().login(credentials["user"], credentials["pass"]))
+        
+        logging.info("Preparing Session and Webhook")
+        session = Session()
+        webhook = DiscordWH(webhook_id=credentials["webhook"][33:51], webhook_token=credentials["webhook"][52:])
+
         logging.info("Preparing Monitors")
         sku_monitors = []
         sku_list = []
@@ -92,9 +113,11 @@ def runGateway():
             for row in csv_reader:
                 if row[0] not in sku_list:
                     sku_list.append(row[0])
+                    monitor = SKUMonitor(row[0], webhook, driver)
+                    asyncio.create_task(startReceiver(monitor))
+                    sku_monitors.append(monitor)
+            logging.info("Started Task Restarters")
         sites = ["kidsfootlocker", "champssports", "footaction", "eastbay", "footlocker"]
-        for sku in sku_list:
-            sku_monitors.append(SKUMonitor(sku, webhook, driver))
 
         webhook = DiscordWH(webhook_id=credentials["webhook"][33:51], webhook_token=credentials["webhook"][52:])
         logging.info("Started Keylog")
@@ -110,8 +133,8 @@ def runGateway():
                         data = json.loads(msg)
                         if data["op"] == 10: # hello
                             # set up heartbeat and identify, or attempt to resume
-                            heart = asyncio.create_task(heartbeat(websocket, data["d"]["heartbeat_interval"]))
-                            task_checker = asyncio.create_task(checkTasks(websocket, sku_monitors))
+                            heart = asyncio.create_task(heartbeat(websocket, data["d"]["heartbeat_interval"], session))
+                            task_checker = asyncio.create_task(checkTasks(websocket, sku_monitors, driver_queue))
 
                             if session.retry:
                                 logging.info("Attempting to Resume Session")
@@ -153,13 +176,14 @@ def runGateway():
                                 }
                             }))
 
+                            # TODO: check if heartbeat died, restart if it did
+                            if heart.done():
+                                raise HeartFailedError
+
                         elif data["op"] == 0: # dispatch
                             if data["t"] == "READY": # ready response, gather session_id
                                 logging.info("Retrieving Session ID")
                                 session.setSessionId(data["d"]["session_id"])
-                            # elif data["t"] == "SESSIONS_REPLACE": # change session_id
-                            #     logging.info("Retrieving Session ID")
-                            #     session.setSessionId(data["d"][0]["session_id"])
                             elif data["t"] == "MESSAGE_CREATE": # receive message
                                 if data["d"]["channel_id"] == channel_id:
                                     timestamp = int(datetime.timestamp(datetime.fromisoformat(data["d"]["timestamp"])) * 1000)
@@ -169,19 +193,14 @@ def runGateway():
                                         if sku_monitor.getSKU() in p_url:
                                             logging.info("Found message with SKU, Checking Statuses")
                                             for site in sites:
-                                                if bot != "KODAI":
+                                                if bot != "KODAI": # check if ganesh has delayed logs
                                                     if site == "footlocker":
                                                         if site in p_url and "kids" not in p_url and "footlockerca" not in p_url:
-                                                            if sku_monitor.updateTimestamp(timestamp, site):
-                                                                for monitor in sku_monitors:
-                                                                    monitor.resetStatus()
-                                                                    monitor.restartIfStopped()
+                                                            await sku_monitor.updateTimestamp(driver_queue, timestamp, site)
                                                     else:
                                                         if site in p_url:
-                                                            if sku_monitor.updateTimestamp(timestamp, site):
-                                                                for monitor in sku_monitors:
-                                                                    monitor.resetStatus()
-                                                                    monitor.restartIfStopped()
+                                                            await sku_monitor.updateTimestamp(driver_queue, timestamp, site)
+
                             logging.info("Setting new S value")
                             session.setS(data["s"])
                             # debug
@@ -197,6 +216,15 @@ def runGateway():
                 session.retry = not session.retry
                 # TODO need to fix resuming
                 await websocket.close()
+            except HeartFailedError:
+                logging.info("Heart Failed Unexpectedly, Restarting Socket")
+                session.setSessionId("")
+                session.retry = not session.retry
+                # TODO need to fix resuming
+            finally:
+                watchdog.cancel()
+                heart.cancel()
+                task_checker.cancel()
         terminate(driver=driver, webhook=webhook)
     
     def shutdown(driver):
@@ -213,7 +241,7 @@ def runGateway():
         shutdown(driver)
 
     print("********************************************")
-    print("************** KylinQT V1.0.0 **************")
+    print("************** KylinQT V{} **************".format(version))
     print("********************************************")
     print("***************By: applearr0w***************")
 
@@ -237,41 +265,27 @@ def runGateway():
         return
 
     while True:
+        def login_check(sender, successful):
+            if not successful:
+                raise LoginError
+
         try:
             # prepare driver
             with open('credentials.json') as c:
                 credentials = json.load(c)
-            with open('login.json') as login:
-                login = json.load(login)
 
             logging.info("Launching Kylin Dashboard")
-            driver = DashboardDriver()
-            if not driver.proper_initialize:
-                break
-
-            login_success = False
-            login_counter = 0
-            while not login_success and login_counter < 3:
-                if driver.login(login_state=login["logged_in"], user=credentials["user"], pw=credentials["pass"]):
-                    logging.info("Successfully logged in")
-                    login_success = True
-                else:
-                    logging.info("Failed to login, retrying")
-                    login_counter += 1
-            if login_counter > 2:
-                logging.info("Unable to login, Closing")
-                shutdown(driver=driver)
-                break
-            
-            logging.info("Starting Gateway Connection")
-            session = Session()
-            webhook = DiscordWH(webhook_id=credentials["webhook"][33:51], webhook_token=credentials["webhook"][52:])
-
             try:
-                asyncio.run((monitor_gateway("wss://gateway.discord.gg/?v=8&encoding=json", webhook=webhook, channel_id=credentials["channel_id"], driver=driver)))
+                asyncio.run((monitor_gateway("wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"])))
                 break
             except KeyboardInterrupt:
                 terminate(driver=driver, webhook=webhook)
+            except LoginError:
+                logging.info("Failed to Login, Exiting")
+                break
+            except DriverFailedInitializeError:
+                logging.info("Failed to Initialize Driver, Exiting")
+                break
         except ConnectionRefusedError:
             logging.info("ConnectionRefusedError, Restarting")
 
