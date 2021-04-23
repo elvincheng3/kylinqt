@@ -179,11 +179,11 @@ class DashboardDriver:
                     logging.info("Received CREATE task from Queue")
                     # TODO: add error handling
                     if self.logged_in:
-                        driver.create_task(driver_task["data"]["sku"], driver_task["data"]["site"])
+                        self.create_task(driver_task["data"]["sku"], driver_task["data"]["site"])
                 elif driver_task["type"] == "DELETE":
                     logging.info("Received DELETE task from Queue")
                     if self.logged_in:
-                        driver.delete_all_tasks()
+                        self.delete_all_tasks()
         except asyncio.exceptions.CancelledError:
             logging.info("Driver Manager was Cancelled")
         finally:
