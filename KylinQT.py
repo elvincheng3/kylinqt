@@ -3,7 +3,6 @@ import json
 from datetime import datetime
 import logging
 import csv
-import random
 import websockets
 import asyncio
 from os import path
@@ -18,7 +17,7 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.0.0"
+version = "1.0.1"
 
 logging_format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
@@ -29,7 +28,7 @@ logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
 SIGNAL_RESUME = 'RESUME'
 SIGNAL_LOGIN = 'LOGIN'
 
-def runGateway():
+def runGateway(test: bool):
     async def heartbeat(ws, interval, session):
         """Send every interval ms the heatbeat message."""
         try:
@@ -58,9 +57,11 @@ def runGateway():
                 await asyncio.sleep(10)
                 logging.info("Checking Monitor Statuses")
                 for monitor in monitors:
-                    await monitor.checkTimestamps(queue)
+                    await monitor.checkTimestamps()
         except asyncio.exceptions.CancelledError:
             logging.info("Task Checker was Cancelled")
+        except:
+            logging.info("Unknown Error")
         finally:
             logging.info("Closed Task Checker")
 
@@ -77,7 +78,7 @@ def runGateway():
             logging.info("Keylog was Cancelled")
         logging.info("Closed Keylog")
 
-    async def monitor_gateway(url, channel_id):
+    async def monitor_gateway(test: bool, url, channel_id):
 
         async def watchGateway(websocket):
             while not websocket.closed:
@@ -113,7 +114,7 @@ def runGateway():
             for row in csv_reader:
                 if row[0] not in sku_list:
                     sku_list.append(row[0])
-                    monitor = SKUMonitor(row[0], webhook, driver)
+                    monitor = SKUMonitor(row[0], webhook, driver, driver_queue)
                     asyncio.create_task(startReceiver(monitor))
                     sku_monitors.append(monitor)
             logging.info("Started Task Restarters")
@@ -123,11 +124,14 @@ def runGateway():
         logging.info("Started Keylog")
         key = asyncio.create_task(key_capture())
 
+        if test:
+            return time.time()
+
         # connect to socket
         while gateway.status:
             try:
                 logging.info("Connecting to Gateway")
-                async with websockets.connect("wss://gateway.discord.gg/?v=8&encoding=json") as websocket:
+                async with websockets.connect("wss://gateway.discord.gg/?v=8&encoding=json", ping_interval=10, ping_timeout=20, max_queue=64) as websocket:
                     watchdog = asyncio.create_task(watchGateway(websocket))
                     async for msg in websocket:
                         data = json.loads(msg)
@@ -175,8 +179,6 @@ def runGateway():
                                     "large_threshold": 250
                                 }
                             }))
-
-                            # TODO: check if heartbeat died, restart if it did
                             if heart.done():
                                 raise HeartFailedError
 
@@ -196,10 +198,10 @@ def runGateway():
                                                 if bot != "KODAI": # check if ganesh has delayed logs
                                                     if site == "footlocker":
                                                         if site in p_url and "kids" not in p_url and "footlockerca" not in p_url:
-                                                            await sku_monitor.updateTimestamp(driver_queue, timestamp, site)
+                                                            await sku_monitor.updateTimestamp(timestamp, site)
                                                     else:
                                                         if site in p_url:
-                                                            await sku_monitor.updateTimestamp(driver_queue, timestamp, site)
+                                                            await sku_monitor.updateTimestamp(timestamp, site)
 
                             logging.info("Setting new S value")
                             session.setS(data["s"])
@@ -240,10 +242,25 @@ def runGateway():
         logging.info("Closing Browser")
         shutdown(driver)
 
+    def login_check(sender, successful):
+        if not successful:
+            raise LoginError
+
     print("********************************************")
     print("************** KylinQT V{} **************".format(version))
     print("********************************************")
     print("***************By: applearr0w***************")
+
+    # Test
+    if test:
+        logging.info("Test Mode")
+        start = time.time()
+        with open('credentials.json') as c:
+            credentials = json.load(c)
+        logging.info("Launching Kylin Dashboard")
+        end = asyncio.run((monitor_gateway(test=test, url="wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"])))
+        logging.info("Completed in {}s".format(str(end - start)))
+        return
 
     # First time setup
     if not path.exists("credentials.json"):
@@ -265,10 +282,6 @@ def runGateway():
         return
 
     while True:
-        def login_check(sender, successful):
-            if not successful:
-                raise LoginError
-
         try:
             # prepare driver
             with open('credentials.json') as c:
@@ -276,10 +289,8 @@ def runGateway():
 
             logging.info("Launching Kylin Dashboard")
             try:
-                asyncio.run((monitor_gateway("wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"])))
+                asyncio.run((monitor_gateway(test=test, url="wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"])))
                 break
-            except KeyboardInterrupt:
-                terminate(driver=driver, webhook=webhook)
             except LoginError:
                 logging.info("Failed to Login, Exiting")
                 break
@@ -294,4 +305,4 @@ class Gateway:
         self.status = True
 
 gateway = Gateway()
-runGateway()
+runGateway(False)

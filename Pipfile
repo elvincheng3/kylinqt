@@ -13,6 +13,7 @@ asyncio = "*"
 aioconsole = "*"
 requests = "*"
 pydispatcher = "*"
+xmltodict = "*"
 
 [requires]
 python_version = "3.9"

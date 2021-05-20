@@ -27,7 +27,7 @@ class DashboardDriver:
         self.opts.add_argument(
             "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36"
         )
-        self.opts.add_argument("user-data-dir=selenium")
+        self.opts.add_argument("user-data-dir=C:\environments\selenium")
         self.opts.add_argument("--disable-blink-features")
         self.opts.add_argument("--disable-blink-features=AutomationControlled")
         self.opts.add_experimental_option("excludeSwitches", ["enable-automation"])
@@ -89,19 +89,30 @@ class DashboardDriver:
     def find(self, xpath):
         try:
             self.driver.find_element_by_xpath(xpath)
-            logging.info("Found OAuth")
+            logging.info("Found Element")
             return True
         except selenium.common.exceptions.NoSuchElementException as e:
             logging.info(e)
             return False
+    
+    def checkLoginStatus(self):
+        if self.find('//*[@id="app"]/div/div/div/header/div[1]/span'):
+            return True
+        return False
 
     # Login to Dashboard
     def login(self, login_state, user, pw):
         login_url = "https://dashboard.kylinbot.io/"
         if login_state:
             if self.navigate(path=login_url):
-                logging.info("Already Logged In")
-                return True
+
+                # TODO: check if we need to reauthenticate by xpath, if we do, handle
+                if self.checkLoginStatus():
+                    logging.info("Already Logged In")
+                    return True
+                else:
+                    return self.reAuth()
+
             logging.info("Error Navigating to Dashboard")
             return False
 
@@ -132,23 +143,61 @@ class DashboardDriver:
         self.logged_in = True
         return True
 
+    def reAuth(self):
+        login_url = "https://dashboard.kylinbot.io/"
+        login_success = False
+        attempt_counter = 0
+        while not login_success and attempt_counter < 3:
+            # TODO login error handling needs to be fixed
+            try:
+                self.navigate(path=login_url)
+                logging.info("Navigated to dashboard, Signing In")
+                self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/button') # login to discord
+                self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/button[2]') # login button
+                self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/div[2]/button[2]') # accept button
+                login_success = True
+            except Exception as e:
+                logging.info("Login error, retrying...")
+                logging.info(e.msg)
+                attempt_counter += 1
+                time.sleep(2)
+        if not login_success:
+            return False
+        self.logged_in = True
+        return True
+
     # Stop all QT
     def stop_all_tasks(self, sku, site):
         stop_url = "https://dashboard.kylinbot.io/quick-task/kylin-bot/stop"
         logging.info("Stopping tasks with SKU {} on {}".format(sku, site))
-        return self.navigate(path=stop_url)
+        if self.navigate(path=stop_url) and self.checkLoginStatus():
+            return True
+        else:
+            if self.reAuth():
+                return self.navigate(path=stop_url) and self.checkLoginStatus()
+        return False
 
     # Delete all QT
     def delete_all_tasks(self):
         delete_url = "https://dashboard.kylinbot.io/quick-task/kylin-bot/delete"
         logging.info("Deleting All Tasks")
-        return self.navigate(path=delete_url)
+        if self.navigate(path=delete_url) and self.checkLoginStatus():
+            return True
+        else:
+            if self.reAuth():
+                return self.navigate(path=delete_url) and self.checkLoginStatus()
+        return False
 
     # Create QT
     def create_task(self, sku, site):
         query = "https://dashboard.kylinbot.io/quick-task/kylin-bot/create?input=https://www." + str(site) + ".com/product/~/" + str(sku) + ".html&sku=" + str(sku)
         logging.info("SKU {} Found on {}, Starting Tasks".format(sku, site))
-        return self.navigate(path=query)
+        if self.navigate(path=query) and self.checkLoginStatus():
+            return True
+        else:
+            if self.reAuth():
+                return self.navigate(path=query) and self.checkLoginStatus()
+        return False # TODO: check if need to reauthenticate, and check for deleting and stopping tasks as well.
 
     # Driver queue manager
     async def driverManager(self):
