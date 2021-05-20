@@ -96,9 +96,7 @@ class DashboardDriver:
             return False
     
     def checkLoginStatus(self):
-        if self.find('//*[@id="app"]/div/div/div/header/div[1]/span'):
-            return True
-        return False
+        return self.find('//*[@id="app"]/div/div/div/header/div[1]/span')
 
     # Login to Dashboard
     def login(self, login_state, user, pw):
@@ -108,8 +106,7 @@ class DashboardDriver:
                 if self.checkLoginStatus():
                     logging.info("Already Logged In")
                     return True
-                else:
-                    return self.reAuth()
+                return self.reAuth()
 
             logging.info("Error Navigating to Dashboard")
             return False
@@ -117,13 +114,10 @@ class DashboardDriver:
         login_success = False
         attempt_counter = 0
         while not login_success and attempt_counter < 3:
-            # TODO login error handling needs to be fixed
             try:
                 self.navigate(path=login_url)
                 logging.info("Navigated to dashboard, Signing In")
                 self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/button') # login to discord
-                # TODO Need to change xpath to more specific for other login scenario
-                # if not self.find('//*[@id="app-mount"]'):
                 self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[1]/div/div[2]/input', text=user) # username
                 self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[2]/div/input', text=pw) # password
                 self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/button[2]') # login button
@@ -220,8 +214,7 @@ class DashboardDriver:
                             dispatcher.send(signal=SIGNAL_LOGIN, successful=True)
                 elif driver_task["type"] == "CREATE":
                     logging.info("Received CREATE task from Queue")
-                    # TODO: add error handling
-                    if self.logged_in:
+                    if self.logged_in and self.checkLoginStatus():
                         self.create_task(driver_task["data"]["sku"], driver_task["data"]["site"])
                 elif driver_task["type"] == "DELETE":
                     logging.info("Received DELETE task from Queue")

@@ -28,12 +28,10 @@ class SKUMonitor:
         return self.sku
 
     # Check all timestamps and stop tasks if needed
-    # TODO: queue parameter and add to queue
     async def checkTimestamps(self):
         async def check(site):
             if self.sites[site] != 0 and int(time.time() * 1000) - self.sites[site] > 360000:
                 logging.info("Stopping tasks with SKU {} on {}".format(self.sku, site))
-                # TODO: Error handling for qt
                 self.webhook.send_qt_stop_embed(site=site, sku=self.sku)
                 self.sites[site] = 0
                 await self.queue.put(QueueData().delete(self.sku, site))
@@ -73,7 +71,6 @@ class SKUMonitor:
                 self.sites[site] = timestamp 
         else:
             logging.info("SKU {} Found on {}, Starting Tasks".format(self.sku, site))
-            # TODO: Error handling for qt
             self.webhook.send_qt_start_embed(site=site, sku=self.sku)
             await self.queue.put(QueueData().create(self.sku, site))
             self.sites[site] = timestamp
