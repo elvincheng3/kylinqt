@@ -105,8 +105,6 @@ class DashboardDriver:
         login_url = "https://dashboard.kylinbot.io/"
         if login_state:
             if self.navigate(path=login_url):
-
-                # TODO: check if we need to reauthenticate by xpath, if we do, handle
                 if self.checkLoginStatus():
                     logging.info("Already Logged In")
                     return True
@@ -148,7 +146,6 @@ class DashboardDriver:
         login_success = False
         attempt_counter = 0
         while not login_success and attempt_counter < 3:
-            # TODO login error handling needs to be fixed
             try:
                 self.navigate(path=login_url)
                 logging.info("Navigated to dashboard, Signing In")
@@ -172,9 +169,8 @@ class DashboardDriver:
         logging.info("Stopping tasks with SKU {} on {}".format(sku, site))
         if self.navigate(path=stop_url) and self.checkLoginStatus():
             return True
-        else:
-            if self.reAuth():
-                return self.navigate(path=stop_url) and self.checkLoginStatus()
+        if self.reAuth():
+            return self.navigate(path=stop_url) and self.checkLoginStatus()
         return False
 
     # Delete all QT
@@ -183,9 +179,8 @@ class DashboardDriver:
         logging.info("Deleting All Tasks")
         if self.navigate(path=delete_url) and self.checkLoginStatus():
             return True
-        else:
-            if self.reAuth():
-                return self.navigate(path=delete_url) and self.checkLoginStatus()
+        if self.reAuth():
+            return self.navigate(path=delete_url) and self.checkLoginStatus()
         return False
 
     # Create QT
@@ -194,10 +189,9 @@ class DashboardDriver:
         logging.info("SKU {} Found on {}, Starting Tasks".format(sku, site))
         if self.navigate(path=query) and self.checkLoginStatus():
             return True
-        else:
-            if self.reAuth():
-                return self.navigate(path=query) and self.checkLoginStatus()
-        return False # TODO: check if need to reauthenticate, and check for deleting and stopping tasks as well.
+        if self.reAuth():
+            return self.navigate(path=query) and self.checkLoginStatus()
+        return False
 
     # Driver queue manager
     async def driverManager(self):

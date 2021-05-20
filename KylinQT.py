@@ -60,8 +60,6 @@ def runGateway(test: bool):
                     await monitor.checkTimestamps()
         except asyncio.exceptions.CancelledError:
             logging.info("Task Checker was Cancelled")
-        except:
-            logging.info("Unknown Error")
         finally:
             logging.info("Closed Task Checker")
 
