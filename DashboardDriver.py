@@ -136,6 +136,7 @@ class DashboardDriver:
         return True
 
     def reAuth(self):
+        logging.info("Reauthing")
         login_url = "https://dashboard.kylinbot.io/"
         login_success = False
         attempt_counter = 0
@@ -144,7 +145,6 @@ class DashboardDriver:
                 self.navigate(path=login_url)
                 logging.info("Navigated to dashboard, Signing In")
                 self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/button') # login to discord
-                self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/button[2]') # login button
                 self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/div[2]/button[2]') # accept button
                 login_success = True
             except Exception as e:
