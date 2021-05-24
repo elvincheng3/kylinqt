@@ -186,6 +186,7 @@ def runGateway(test: bool):
                                 session.setSessionId(data["d"]["session_id"])
                             elif data["t"] == "MESSAGE_CREATE": # receive message
                                 if data["d"]["channel_id"] == channel_id:
+                                    logging.info("Detected Footsite Checkout")
                                     timestamp = int(datetime.timestamp(datetime.fromisoformat(data["d"]["timestamp"])) * 1000)
                                     p_url = data["d"]["embeds"][0]["url"]
                                     bot = data["d"]["embeds"][0]["fields"][3]["value"]
@@ -201,7 +202,7 @@ def runGateway(test: bool):
                                                         if site in p_url:
                                                             await sku_monitor.updateTimestamp(timestamp, site)
 
-                            logging.info("Setting new S value")
+                            # logging.info("Setting new S value")
                             session.setS(data["s"])
                             # debug
                             # print(data['t'], data['d'], data["s"])
@@ -232,10 +233,12 @@ def runGateway(test: bool):
 
     def terminate(driver, webhook):
         logging.info("Stopping Monitor and Closing Tasks")
-        if not webhook.send_qt_stopAll_embed():
-            logging.info("Failed to send Stop All Webhook")
         if not driver.delete_all_tasks():
             logging.info("Failed to delete all tasks")
+            if not webhook.failedToStopEmbed():
+                logging.info("Failed to send failure webhook")
+        if not webhook.send_qt_stopAll_embed():
+            logging.info("Failed to send Stop All Webhook")
         time.sleep(5)
         logging.info("Closing Browser")
         shutdown(driver)
@@ -291,9 +294,11 @@ def runGateway(test: bool):
                 break
             except LoginError:
                 logging.info("Failed to Login, Exiting")
+                gateway.status = False
                 break
             except DriverFailedInitializeError:
                 logging.info("Failed to Initialize Driver, Exiting")
+                gateway.status = False
                 break
         except ConnectionRefusedError:
             logging.info("ConnectionRefusedError, Restarting")
