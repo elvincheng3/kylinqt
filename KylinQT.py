@@ -129,7 +129,7 @@ def runGateway(test: bool):
         while gateway.status:
             try:
                 logging.info("Connecting to Gateway")
-                async with websockets.connect("wss://gateway.discord.gg/?v=8&encoding=json", ping_interval=10, ping_timeout=20, max_queue=64) as websocket:
+                async with websockets.connect("wss://gateway.discord.gg/?v=8&encoding=json", ping_interval=10, ping_timeout=20, max_queue=64, max_size=10000000) as websocket:
                     watchdog = asyncio.create_task(watchGateway(websocket))
                     async for msg in websocket:
                         data = json.loads(msg)
