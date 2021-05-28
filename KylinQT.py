@@ -17,7 +17,7 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.0.1"
+version = "1.0.3"
 
 logging_format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[

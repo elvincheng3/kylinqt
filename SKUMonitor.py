@@ -71,6 +71,6 @@ class SKUMonitor:
                 self.sites[site] = timestamp 
         else:
             logging.info("SKU {} Found on {}, Starting Tasks".format(self.sku, site))
-            self.webhook.send_qt_start_embed(site=site, sku=self.sku)
             await self.queue.put(QueueData().create(self.sku, site))
+            self.webhook.send_qt_start_embed(site=site, sku=self.sku)
             self.sites[site] = timestamp

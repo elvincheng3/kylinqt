@@ -59,8 +59,8 @@ class DashboardDriver:
     # Navigate to specified path
     def navigate(self, path):
         try:
-            time.sleep(2)
             self.driver.get(path)
+            time.sleep(2)
             return True
         except ConnectionRefusedError:
             self.newDriver()
@@ -69,9 +69,9 @@ class DashboardDriver:
     # Click an element based on its XPath
     def click(self, xpath):
         try:
-            time.sleep(2)
             button = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
             button.click()
+            time.sleep(2)
         except ConnectionRefusedError:
             self.newDriver()
             return False
@@ -79,9 +79,9 @@ class DashboardDriver:
     # Fill a field with text based on its XPath
     def fill_text(self, xpath, text):
         try:
-            time.sleep(2)
             field = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
             field.send_keys(text)
+            time.sleep(2)
         except ConnectionRefusedError:
             self.newDriver()
             return False
@@ -214,7 +214,7 @@ class DashboardDriver:
                             dispatcher.send(signal=SIGNAL_LOGIN, successful=True)
                 elif driver_task["type"] == "CREATE":
                     logging.info("Received CREATE task from Queue")
-                    if self.logged_in and self.checkLoginStatus():
+                    if self.logged_in:
                         self.create_task(driver_task["data"]["sku"], driver_task["data"]["site"])
                 elif driver_task["type"] == "DELETE":
                     logging.info("Received DELETE task from Queue")
