@@ -1,6 +1,7 @@
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -135,6 +136,7 @@ class DashboardDriver:
         self.logged_in = True
         return True
 
+
     def reAuth(self):
         logging.info("Reauthing")
         login_url = "https://dashboard.kylinbot.io/"
@@ -193,6 +195,7 @@ class DashboardDriver:
             while True:
                 driver_task = await self.queue.get()
                 logging.info(self.queue.qsize)
+
                 if driver_task["type"] == "LOGIN":
                     if not self.logged_in:
                         with open('login.json') as login:
@@ -222,5 +225,8 @@ class DashboardDriver:
                         self.delete_all_tasks()
         except asyncio.exceptions.CancelledError:
             logging.info("Driver Manager was Cancelled")
+        except WebDriverException:
+            logging.info("Unable to connect driver, closing...")
+            self.driver.close()
         finally:
             logging.info("Driver Manager was Closed")

@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 import csv
 import websockets
+import socket
 import asyncio
 from os import path
 from aioconsole import ainput
@@ -17,7 +18,7 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.0.3"
+version = "1.0.4"
 
 logging_format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
@@ -86,9 +87,6 @@ def runGateway(test: bool):
                     break
                 await asyncio.sleep(2)
 
-        async def startReceiver(sku_monitor):
-            dispatcher.connect(sku_monitor.restartIfStopped, signal=SIGNAL_RESUME, sender=dispatcher.Any)
-
         driver_queue = asyncio.Queue()
         driver = DashboardDriver(driver_queue)
         asyncio.create_task(driver.driverManager())
@@ -99,7 +97,6 @@ def runGateway(test: bool):
 
         dispatcher.connect(login_check, signal=SIGNAL_LOGIN, sender=dispatcher.Any)
         await driver_queue.put(QueueData().login(credentials["user"], credentials["pass"]))
-        
         logging.info("Preparing Session and Webhook")
         session = Session()
         webhook = DiscordWH(webhook_id=credentials["webhook"][33:51], webhook_token=credentials["webhook"][52:])
@@ -113,7 +110,6 @@ def runGateway(test: bool):
                 if row[0] not in sku_list:
                     sku_list.append(row[0])
                     monitor = SKUMonitor(row[0], webhook, driver, driver_queue)
-                    asyncio.create_task(startReceiver(monitor))
                     sku_monitors.append(monitor)
             logging.info("Started Task Restarters")
         sites = ["kidsfootlocker", "champssports", "footaction", "eastbay", "footlocker"]
@@ -129,7 +125,9 @@ def runGateway(test: bool):
         while gateway.status:
             try:
                 logging.info("Connecting to Gateway")
+                connected = False
                 async with websockets.connect("wss://gateway.discord.gg/?v=8&encoding=json", ping_interval=10, ping_timeout=20, max_queue=64, max_size=10000000) as websocket:
+                    connected = True
                     watchdog = asyncio.create_task(watchGateway(websocket))
                     async for msg in websocket:
                         data = json.loads(msg)
@@ -186,21 +184,26 @@ def runGateway(test: bool):
                                 session.setSessionId(data["d"]["session_id"])
                             elif data["t"] == "MESSAGE_CREATE": # receive message
                                 if data["d"]["channel_id"] == channel_id:
+                                    # print(data["d"])
                                     logging.info("Detected Footsite Checkout")
                                     timestamp = int(datetime.timestamp(datetime.fromisoformat(data["d"]["timestamp"])) * 1000)
-                                    p_url = data["d"]["embeds"][0]["url"]
-                                    bot = data["d"]["embeds"][0]["fields"][3]["value"]
-                                    for sku_monitor in sku_monitors:
-                                        if sku_monitor.getSKU() in p_url:
-                                            logging.info("Found message with SKU, Checking Statuses")
-                                            for site in sites:
-                                                if bot != "KODAI": # check if ganesh has delayed logs
-                                                    if site == "footlocker":
-                                                        if site in p_url and "kids" not in p_url and "footlockerca" not in p_url:
-                                                            await sku_monitor.updateTimestamp(timestamp, site)
-                                                    else:
-                                                        if site in p_url:
-                                                            await sku_monitor.updateTimestamp(timestamp, site)
+                                    try:
+                                        p_url = data["d"]["embeds"][0]["url"]
+                                        bot = data["d"]["embeds"][0]["fields"][3]["value"]
+                                        for sku_monitor in sku_monitors:
+                                            if sku_monitor.getSKU() in p_url:
+                                                logging.info("Found message with SKU, Checking Statuses")
+                                                for site in sites:
+                                                    if bot != "KODAI": # check if ganesh has delayed logs
+                                                        if site == "footlocker":
+                                                            if site in p_url and "kids" not in p_url and "footlockerca" not in p_url:
+                                                                await sku_monitor.updateTimestamp(timestamp, site)
+                                                        else:
+                                                            if site in p_url:
+                                                                await sku_monitor.updateTimestamp(timestamp, site)
+                                    except:
+                                        logging.info("Error parsing embed, continuing")
+                                        logging.info(data["d"])
 
                             # logging.info("Setting new S value")
                             session.setS(data["s"])
@@ -212,7 +215,13 @@ def runGateway(test: bool):
                             print(data)
                         
             except websockets.exceptions.ConnectionClosedError:
-                logging.info("Connection was closed, restarting socket...")
+                logging.info("Connection was closed, Restarting socket...")
+                session.setSessionId("")
+                session.retry = not session.retry
+                # TODO need to fix resuming
+                await websocket.close()
+            except websockets.exceptions.InvalidStatusCode:
+                logging.info("Connection was rejected, Restarting socket...")
                 session.setSessionId("")
                 session.retry = not session.retry
                 # TODO need to fix resuming
@@ -222,10 +231,16 @@ def runGateway(test: bool):
                 session.setSessionId("")
                 session.retry = not session.retry
                 # TODO need to fix resuming
+            except socket.gaierror:
+                logging.info("Lost connection unexpectedly, Restarting Socket")
+                session.setSessionId("")
+                session.retry = not session.retry
+                time.sleep(.5)
             finally:
-                watchdog.cancel()
-                heart.cancel()
-                task_checker.cancel()
+                if connected:
+                    watchdog.cancel()
+                    heart.cancel()
+                    task_checker.cancel()
         terminate(driver=driver, webhook=webhook)
     
     def shutdown(driver):
