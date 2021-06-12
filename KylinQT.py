@@ -18,7 +18,8 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.0.4"
+version = "1.0.5"
+PAUSE_INTERVAL = 900
 
 logging_format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
@@ -109,7 +110,7 @@ def runGateway(test: bool):
             for row in csv_reader:
                 if row[0] not in sku_list:
                     sku_list.append(row[0])
-                    monitor = SKUMonitor(row[0], webhook, driver, driver_queue)
+                    monitor = SKUMonitor(row[0], webhook, driver, driver_queue, pause_interval=PAUSE_INTERVAL)
                     sku_monitors.append(monitor)
             logging.info("Started Task Restarters")
         sites = ["kidsfootlocker", "champssports", "footaction", "eastbay", "footlocker"]
