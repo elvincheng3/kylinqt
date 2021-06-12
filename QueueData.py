@@ -25,3 +25,8 @@ class QueueData():
                 "site": site
             }
         }
+    def stop(self):
+        return {
+            "type": "STOP",
+            "data": {}
+        }

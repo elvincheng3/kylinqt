@@ -18,7 +18,9 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.0.5"
+version = "1.1.0"
+TEST = False
+HEADLESS = True
 PAUSE_INTERVAL = 900
 
 logging_format = "%(asctime)s: %(message)s"
@@ -29,8 +31,9 @@ logging.basicConfig(format=logging_format, level=logging.INFO, handlers=[
 
 SIGNAL_RESUME = 'RESUME'
 SIGNAL_LOGIN = 'LOGIN'
+site_list = ["footlocker", "champssports", "footaction", "eastbay", "kidsfootlocker"]
 
-def runGateway(test: bool):
+def runGateway(test: bool, headless: bool):
     async def heartbeat(ws, interval, session):
         """Send every interval ms the heatbeat message."""
         try:
@@ -78,7 +81,7 @@ def runGateway(test: bool):
             logging.info("Keylog was Cancelled")
         logging.info("Closed Keylog")
 
-    async def monitor_gateway(test: bool, url, channel_id):
+    async def monitor_gateway(test: bool, url, channel_id, headless):
 
         async def watchGateway(websocket):
             while not websocket.closed:
@@ -89,7 +92,7 @@ def runGateway(test: bool):
                 await asyncio.sleep(2)
 
         driver_queue = asyncio.Queue()
-        driver = DashboardDriver(driver_queue)
+        driver = DashboardDriver(driver_queue, headless=headless)
         asyncio.create_task(driver.driverManager())
         logging.info("Started Driver Manager")
 
@@ -101,6 +104,7 @@ def runGateway(test: bool):
         logging.info("Preparing Session and Webhook")
         session = Session()
         webhook = DiscordWH(webhook_id=credentials["webhook"][33:51], webhook_token=credentials["webhook"][52:])
+        whitelisted_users = credentials["whitelisted_users"]
 
         logging.info("Preparing Monitors")
         sku_monitors = []
@@ -205,7 +209,29 @@ def runGateway(test: bool):
                                     except:
                                         logging.info("Error parsing embed, continuing")
                                         logging.info(data["d"])
-
+                                elif data["d"]["author"]["id"] in whitelisted_users:
+                                    parsed_query = data["d"]["content"].split()
+                                    len_query = len(parsed_query)
+                                    if len_query == 1:
+                                        if parsed_query[0] == "!help":
+                                            logging.info("Received query for help")
+                                            webhook.send_qt_receivedHelpQuery()
+                                        elif parsed_query[0] == "!stop":
+                                            logging.info("Received query to stop quicktasks")
+                                            await driver_queue.put(QueueData().stop())
+                                            webhook.send_qt_receivedStopQuery()
+                                        elif parsed_query[0] == "!quit":
+                                            logging.info("Received query to stop KylinQT")
+                                            webhook.send_qt_receivedQuitQuery()
+                                            gateway.status = False
+                                            key.cancel() # TODO: correctly close keylogger after receiving query to quit
+                                    elif len_query == 3 and parsed_query[0] == "!start":
+                                        if parsed_query[1] in site_list:
+                                            logging.info("Received query to start QT with SKU {}".format(parsed_query[2]))
+                                            webhook.send_qt_receivedStartQuery(sku=parsed_query[2], site=parsed_query[1])
+                                            await driver_queue.put(QueueData().create(sku=parsed_query[2], site=parsed_query[1]))
+                                else:
+                                    print(data)
                             # logging.info("Setting new S value")
                             session.setS(data["s"])
                             # debug
@@ -253,7 +279,7 @@ def runGateway(test: bool):
             logging.info("Failed to delete all tasks")
             if not webhook.failedToStopEmbed():
                 logging.info("Failed to send failure webhook")
-        if not webhook.send_qt_stopAll_embed():
+        if not webhook.send_qt_deleteAll_embed():
             logging.info("Failed to send Stop All Webhook")
         time.sleep(5)
         logging.info("Closing Browser")
@@ -275,7 +301,7 @@ def runGateway(test: bool):
         with open('credentials.json') as c:
             credentials = json.load(c)
         logging.info("Launching Kylin Dashboard")
-        end = asyncio.run((monitor_gateway(test=test, url="wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"])))
+        end = asyncio.run((monitor_gateway(test=test, url="wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"], headless=headless)))
         logging.info("Completed in {}s".format(str(end - start)))
         return
 
@@ -290,7 +316,10 @@ def runGateway(test: bool):
                 "pass": "Enter Discord Password Here",
                 "token": "Enter User OAuth Token Here",
                 "channel_id": "Enter Channel ID with Log Alerts",
-                "webhook": "Enter Webhook Here"
+                "webhook": "Enter Webhook Here",
+                "whitelisted_users": [
+                    "Enter user ids that can use user commands"
+                ]
             }, c)
         with open("skus.txt", 'w') as s:
             s.write("Delete this line and add one SKU per line")
@@ -306,7 +335,7 @@ def runGateway(test: bool):
 
             logging.info("Launching Kylin Dashboard")
             try:
-                asyncio.run((monitor_gateway(test=test, url="wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"])))
+                asyncio.run((monitor_gateway(test=test, url="wss://gateway.discord.gg/?v=8&encoding=json", channel_id=credentials["channel_id"], headless=headless)))
                 break
             except LoginError:
                 logging.info("Failed to Login, Exiting")
@@ -324,4 +353,4 @@ class Gateway:
         self.status = True
 
 gateway = Gateway()
-runGateway(False)
+runGateway(test=TEST, headless=HEADLESS)

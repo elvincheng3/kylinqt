@@ -19,7 +19,7 @@ SIGNAL_LOGIN = 'LOGIN'
 class DashboardDriver:
 
     # Initialize the Selenium WebDriver
-    def __init__(self, queue):
+    def __init__(self, queue, headless):
         logging.info("Initializing Driver")
         self.queue = queue
         self.proper_initialize = False
@@ -33,6 +33,9 @@ class DashboardDriver:
         self.opts.add_argument("--disable-blink-features=AutomationControlled")
         self.opts.add_experimental_option("excludeSwitches", ["enable-automation"])
         self.opts.add_experimental_option('useAutomationExtension', False)
+
+        if headless:
+            self.opts.add_argument("--headless")  
         try:
             self.driver = webdriver.Chrome(options=self.opts)
             self.driver.set_window_size(1920, 1080)
@@ -160,9 +163,9 @@ class DashboardDriver:
         return True
 
     # Stop all QT
-    def stop_all_tasks(self, sku, site):
+    def stop_all_tasks(self):
         stop_url = "https://dashboard.kylinbot.io/quick-task/kylin-bot/stop"
-        logging.info("Stopping tasks with SKU {} on {}".format(sku, site))
+        logging.info("Stopping All Tasks")
         if self.navigate(path=stop_url) and self.checkLoginStatus():
             return True
         if self.reAuth():
@@ -223,6 +226,10 @@ class DashboardDriver:
                     logging.info("Received DELETE task from Queue")
                     if self.logged_in:
                         self.delete_all_tasks()
+                elif driver_task["type"] == "STOP":
+                    logging.info("Received STOP task from Queue")
+                    if self.logged_in:
+                        self.stop_all_tasks()
         except asyncio.exceptions.CancelledError:
             logging.info("Driver Manager was Cancelled")
         except WebDriverException:

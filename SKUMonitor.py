@@ -39,8 +39,8 @@ class SKUMonitor:
     async def checkTimestamps(self):
         async def check(site):
             if self.sites[site] != 0 and int(time.time() * 1000) - self.sites[site] > 360000:
-                logging.info("Stopping tasks with SKU {} on {}".format(self.sku, site))
-                self.webhook.send_qt_stop_embed(site=site, sku=self.sku)
+                logging.info("Deleting tasks with SKU {} on {}".format(self.sku, site))
+                self.webhook.send_qt_delete_embed(site=site, sku=self.sku)
                 self.sites[site] = 0
                 await self.queue.put(QueueData().delete(self.sku, site))
 
@@ -58,13 +58,13 @@ class SKUMonitor:
 
         if ftl_check or champs_check or fa_check or eb_check or kftl_check:
             await self.restartIfStopped()
-            logging.info("Attempted to restart stopped tasks")
+            logging.info("Attempted to restart deleted tasks")
             return True
         return False
     
     async def restartIfStopped(self):
         async def resumeLogging(sku, site):
-            logging.info("SKU {} was Stopped by Other SKU, Resuming Tasks on {}".format(sku, site))
+            logging.info("SKU {} was Deleted by Other SKU, Resuming Tasks on {}".format(sku, site))
             await self.queue.put(QueueData().create(sku, site))
 
         for site in site_list:
