@@ -224,7 +224,7 @@ def runGateway(test: bool, headless: bool):
                                             logging.info("Received query to stop KylinQT")
                                             webhook.send_qt_receivedQuitQuery()
                                             gateway.status = False
-                                            key.cancel() # TODO: correctly close keylogger after receiving query to quit
+                                            key.cancel() #TODO: #1 correctly close keylogger after receiving query to quit
                                     elif len_query == 3 and parsed_query[0] == "!start":
                                         if parsed_query[1] in site_list:
                                             logging.info("Received query to start QT with SKU {}".format(parsed_query[2]))
@@ -245,19 +245,16 @@ def runGateway(test: bool, headless: bool):
                 logging.info("Connection was closed, Restarting socket...")
                 session.setSessionId("")
                 session.retry = not session.retry
-                # TODO need to fix resuming
                 await websocket.close()
             except websockets.exceptions.InvalidStatusCode:
                 logging.info("Connection was rejected, Restarting socket...")
                 session.setSessionId("")
                 session.retry = not session.retry
-                # TODO need to fix resuming
                 await websocket.close()
             except HeartFailedError:
                 logging.info("Heart Failed Unexpectedly, Restarting Socket")
                 session.setSessionId("")
                 session.retry = not session.retry
-                # TODO need to fix resuming
             except socket.gaierror:
                 logging.info("Lost connection unexpectedly, Restarting Socket")
                 session.setSessionId("")
