@@ -18,7 +18,7 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.1.0"
+version = "1.1.1"
 TEST = False
 HEADLESS = True
 PAUSE_INTERVAL = 900

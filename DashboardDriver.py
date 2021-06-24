@@ -121,7 +121,11 @@ class DashboardDriver:
             try:
                 self.navigate(path=login_url)
                 logging.info("Navigated to dashboard, Signing In")
-                self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/button') # login to discord
+                self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/div/div[1]') # open terms
+                self.click(xpath="/html/body/div[3]/div[2]/div/div[3]/div/div/div") # click agree checkbox
+                self.click(xpath="/html/body/div[3]/div[2]/div/div[4]/button[2]") # click agree
+
+                self.click(xpath='//*[@id="app"]/div/div/div/div/div[3]/button') # login to discord
                 self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[1]/div/div[2]/input', text=user) # username
                 self.fill_text(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/div[2]/div/input', text=pw) # password
                 self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/form/div/div/div[1]/div[3]/button[2]') # login button
@@ -149,7 +153,11 @@ class DashboardDriver:
             try:
                 self.navigate(path=login_url)
                 logging.info("Navigated to dashboard, Signing In")
-                self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/button') # login to discord
+                self.click(xpath='//*[@id="app"]/div/div/div/div/div[2]/div/div[1]') # open terms
+                self.click(xpath="/html/body/div[3]/div[2]/div/div[3]/div/div/div") # click agree checkbox
+                self.click(xpath="/html/body/div[3]/div[2]/div/div[4]/button[2]") # click agree
+
+                self.click(xpath='//*[@id="app"]/div/div/div/div/div[3]/button') # login to discord
                 self.click(xpath='//*[@id="app-mount"]/div[2]/div/div[2]/div/div/div[2]/button[2]') # accept button
                 login_success = True
             except Exception as e:
