@@ -88,7 +88,7 @@ class SKUMonitor:
             if self.sites[site] < timestamp:
                 self.sites[site] = timestamp 
         else:
-            if int(time.time() * 1000) - self.pause[site] > (self.pause_interval * 1000):
+            if int(time.time() * 1000) - self.pause[site] > (self.pause_interval * 1000): #TODO: #2 Create dedicated function to unpause at regular interval
                 logging.info("SKU {} Unpaused".format(self.sku))
                 self.pause[site] = 0
             if self.pause[site] == 0: 

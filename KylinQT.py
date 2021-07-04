@@ -18,9 +18,9 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.1.1"
+version = "1.1.2"
 TEST = False
-HEADLESS = True
+HEADLESS = False
 PAUSE_INTERVAL = 900
 
 logging_format = "%(asctime)s: %(message)s"
