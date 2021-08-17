@@ -4,6 +4,8 @@ from datetime import datetime
 import logging
 import csv
 import websockets
+import websockets.legacy.client
+import websockets.exceptions
 import socket
 import asyncio
 from os import path
@@ -18,7 +20,7 @@ from DiscordWH import DiscordWH
 from SKUMonitor import SKUMonitor
 from QueueData import QueueData
 
-version = "1.1.2"
+version = "1.1.3"
 TEST = False
 HEADLESS = False
 PAUSE_INTERVAL = 900
