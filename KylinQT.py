@@ -121,7 +121,6 @@ def runGateway(test: bool, headless: bool):
             logging.info("Started Task Restarters")
         sites = ["kidsfootlocker", "champssports", "footaction", "eastbay", "footlocker"]
 
-        webhook = DiscordWH(webhook_id=credentials["webhook"][33:51], webhook_token=credentials["webhook"][52:])
         logging.info("Started Keylog")
         key = asyncio.create_task(key_capture())
 
@@ -138,6 +137,7 @@ def runGateway(test: bool, headless: bool):
                     watchdog = asyncio.create_task(watchGateway(websocket))
                     async for msg in websocket:
                         data = json.loads(msg)
+                        print(data)
                         if data["op"] == 10: # hello
                             # set up heartbeat and identify, or attempt to resume
                             heart = asyncio.create_task(heartbeat(websocket, data["d"]["heartbeat_interval"], session))
