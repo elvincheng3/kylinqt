@@ -4,7 +4,14 @@ from QueueData import QueueData
 import logging
 from pydispatch import dispatcher
 
-site_list = ["footlocker", "champssports", "footaction", "eastbay", "kidsfootlocker"]
+site_list = ["Kids Footlocker", "Champs Sports", "Footaction", "East Bay", "Footlocker US"]
+site_converter = {
+    "Kids Footlocker" : "kidsfootlocker",
+    "Champs Sports": "champssports",
+    "Footaction": "footaction",
+    "East Bay" : "eastbay",
+    "Footlocker US" : "footlocker"
+}
 SIGNAL_RESUME = 'RESUME'
 
 class SKUMonitor:
@@ -68,8 +75,8 @@ class SKUMonitor:
             await self.queue.put(QueueData().create(sku, site))
 
         for site in site_list:
-            if self.sites[site] != 0 and int(time.time() * 1000) - self.sites[site] < 360000:
-                await resumeLogging(self.sku, site)
+            if self.sites[site_converter[site]] != 0 and int(time.time() * 1000) - self.sites[site_converter[site]] < 360000:
+                await resumeLogging(self.sku, site_converter[site])
         
         # if self.sites["footlocker"] != 0 and int(time.time() * 1000) - self.sites["footlocker"] < 360000:
         #     await resumeLogging(self.sku, "footlocker")
@@ -84,17 +91,17 @@ class SKUMonitor:
         
 
     async def updateTimestamp(self, timestamp, site):
-        if self.sites[site] != 0:
-            if self.sites[site] < timestamp:
-                self.sites[site] = timestamp 
+        if self.sites[site_converter[site]] != 0:
+            if self.sites[site_converter[site]] < timestamp:
+                self.sites[site_converter[site]] = timestamp 
         else:
-            if int(time.time() * 1000) - self.pause[site] > (self.pause_interval * 1000): #TODO: #2 Create dedicated function to unpause at regular interval
+            if int(time.time() * 1000) - self.pause[site_converter[site]] > (self.pause_interval * 1000): #TODO: #2 Create dedicated function to unpause at regular interval
                 logging.info("SKU {} Unpaused".format(self.sku))
-                self.pause[site] = 0
-            if self.pause[site] == 0: 
+                self.pause[site_converter[site]] = 0
+            if self.pause[site_converter[site]] == 0: 
                 logging.info("SKU {} Found on {}, Starting Tasks".format(self.sku, site))
-                await self.queue.put(QueueData().create(self.sku, site))
-                self.webhook.send_qt_start_embed(site=site, sku=self.sku)
-                self.sites[site] = timestamp
+                await self.queue.put(QueueData().create(self.sku, site_converter[site]))
+                self.webhook.send_qt_start_embed(site=site_converter[site], sku=self.sku)
+                self.sites[site_converter[site]] = timestamp
             else:
                 logging.info("SKU {} Found While Paused".format(self.sku))

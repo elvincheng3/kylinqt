@@ -119,7 +119,7 @@ def runGateway(test: bool, headless: bool):
                     monitor = SKUMonitor(row[0], webhook, driver, driver_queue, pause_interval=PAUSE_INTERVAL)
                     sku_monitors.append(monitor)
             logging.info("Started Task Restarters")
-        sites = ["kidsfootlocker", "champssports", "footaction", "eastbay", "footlocker"]
+        sites = ["Kids Footlocker", "Champs Sports", "Footaction", "East Bay", "Footlocker US"]
 
         logging.info("Started Keylog")
         key = asyncio.create_task(key_capture())
@@ -137,7 +137,7 @@ def runGateway(test: bool, headless: bool):
                     watchdog = asyncio.create_task(watchGateway(websocket))
                     async for msg in websocket:
                         data = json.loads(msg)
-                        print(data)
+                        #print(data)
                         if data["op"] == 10: # hello
                             # set up heartbeat and identify, or attempt to resume
                             heart = asyncio.create_task(heartbeat(websocket, data["d"]["heartbeat_interval"], session))
@@ -190,24 +190,29 @@ def runGateway(test: bool, headless: bool):
                                 logging.info("Retrieving Session ID")
                                 session.setSessionId(data["d"]["session_id"])
                             elif data["t"] == "MESSAGE_CREATE": # receive message
+                                # changes
+                                # if data["d"]["guild_id"] == "737032171117871136":
+                                #     if data["d"]["channel_id"] == channel_id:
+
+                                #         print("msg from soflo ftl checkout")
+                                #         print(data)
+                                # changes
                                 if data["d"]["channel_id"] == channel_id:
                                     # print(data["d"])
                                     logging.info("Detected Footsite Checkout")
-                                    timestamp = int(datetime.timestamp(datetime.fromisoformat(data["d"]["timestamp"])) * 1000)
+                                    # timestamp = int(datetime.timestamp(datetime.fromisoformat(data["d"]["timestamp"])) * 1000)
                                     try:
-                                        p_url = data["d"]["embeds"][0]["url"]
-                                        bot = data["d"]["embeds"][0]["fields"][3]["value"]
+                                        p_url = data["d"]["embeds"][0]["fields"][7]["value"]
+                                        print(p_url)
+                                        co_site = data["d"]["embeds"][0]["fields"][1]["value"]
+                                        print(co_site)
+                                        timestamp = int(data["d"]["embeds"][0]["fields"][14]["value"])
                                         for sku_monitor in sku_monitors:
                                             if sku_monitor.getSKU() in p_url:
                                                 logging.info("Found message with SKU, Checking Statuses")
                                                 for site in sites:
-                                                    if bot != "KODAI": # check if ganesh has delayed logs
-                                                        if site == "footlocker":
-                                                            if site in p_url and "kids" not in p_url and "footlockerca" not in p_url:
-                                                                await sku_monitor.updateTimestamp(timestamp, site)
-                                                        else:
-                                                            if site in p_url:
-                                                                await sku_monitor.updateTimestamp(timestamp, site)
+                                                    if site in co_site:
+                                                        await sku_monitor.updateTimestamp(timestamp, site)
                                     except:
                                         logging.info("Error parsing embed, continuing")
                                         logging.info(data["d"])
@@ -233,7 +238,8 @@ def runGateway(test: bool, headless: bool):
                                             webhook.send_qt_receivedStartQuery(sku=parsed_query[2], site=parsed_query[1])
                                             await driver_queue.put(QueueData().create(sku=parsed_query[2], site=parsed_query[1]))
                                 else:
-                                    print(data)
+                                    # print("received other message")
+                                    continue
                             # logging.info("Setting new S value")
                             session.setS(data["s"])
                             # debug
